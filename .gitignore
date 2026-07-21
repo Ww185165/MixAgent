@@ -31,3 +31,8 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local environment and runtime output ###
+.env
+logs/
+tmp/

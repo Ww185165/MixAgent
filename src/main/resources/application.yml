@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: MixAgent
+  datasource:
+    # 本地默认值与 compose.yaml 保持一致；部署时必须通过环境变量覆盖账号和密码。
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/mixagent}
+    username: ${DB_USERNAME:mixagent}
+    password: ${DB_PASSWORD:mixagent_dev}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:3000}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:mixagent_dev}
+      timeout: ${REDIS_TIMEOUT:2s}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+mybatis-plus:
+  configuration:
+    # 数据库使用 snake_case，Java 使用 camelCase，统一映射避免每个字段重复声明。
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      id-type: auto
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,flyway
+  endpoint:
+    health:
+      show-details: when_authorized
+      probes:
+        enabled: true
+
+server:
+  error:
+    # 统一异常处理负责返回可读错误，禁止默认错误页泄露内部异常信息。
+    include-message: never
+    include-stacktrace: never
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"
