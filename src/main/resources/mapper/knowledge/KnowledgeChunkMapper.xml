@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.wyfagent.mixagent.knowledge.infrastructure.persistence.mapper.KnowledgeChunkMapper">
+
+    <insert id="batchInsert">
+        INSERT INTO knowledge_chunk
+            (document_id, chunk_index, content, character_count, metadata, embedding)
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.documentId}, #{row.chunkIndex}, #{row.content}, #{row.characterCount},
+             CAST(#{row.metadataJson} AS JSONB), CAST(#{row.embeddingLiteral} AS VECTOR))
+        </foreach>
+    </insert>
+
+    <select id="vectorSearch"
+            resultType="com.wyfagent.mixagent.knowledge.infrastructure.persistence.entity.KnowledgeSearchRow">
+        SELECT kc.id AS chunk_id,
+               kc.document_id,
+               kd.title AS document_title,
+               kc.content,
+               ROW_NUMBER() OVER (ORDER BY kc.embedding <![CDATA[ <=> ]]> CAST(#{embeddingLiteral} AS VECTOR), kc.id) AS rank,
+               1 - (kc.embedding <![CDATA[ <=> ]]> CAST(#{embeddingLiteral} AS VECTOR)) AS raw_score
+        FROM knowledge_chunk kc
+        JOIN knowledge_document kd ON kd.id = kc.document_id AND kd.status = 'READY'
+        WHERE kc.embedding IS NOT NULL
+        ORDER BY kc.embedding <![CDATA[ <=> ]]> CAST(#{embeddingLiteral} AS VECTOR), kc.id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 中文全文分词能力有限，因此同时使用精确子串、三元组相似度和 PostgreSQL 全文相关度。 -->
+    <select id="keywordSearch"
+            resultType="com.wyfagent.mixagent.knowledge.infrastructure.persistence.entity.KnowledgeSearchRow">
+        SELECT scored.chunk_id,
+               scored.document_id,
+               scored.document_title,
+               scored.content,
+               ROW_NUMBER() OVER (ORDER BY scored.keyword_score DESC, scored.chunk_id) AS rank,
+               scored.keyword_score AS raw_score
+        FROM (
+            SELECT kc.id AS chunk_id,
+                   kc.document_id,
+                   kd.title AS document_title,
+                   kc.content,
+                   (CASE WHEN POSITION(LOWER(#{query}) IN LOWER(kc.content)) > 0 THEN 1.0 ELSE 0.0 END
+                    + similarity(kc.content, #{query})
+                    + ts_rank(kc.search_vector, plainto_tsquery('simple', #{query}))) AS keyword_score
+            FROM knowledge_chunk kc
+            JOIN knowledge_document kd ON kd.id = kc.document_id AND kd.status = 'READY'
+            WHERE POSITION(LOWER(#{query}) IN LOWER(kc.content)) > 0
+               OR kc.search_vector @@ plainto_tsquery('simple', #{query})
+               OR similarity(kc.content, #{query}) > 0.05
+        ) scored
+        ORDER BY scored.keyword_score DESC, scored.chunk_id
+        LIMIT #{limit}
+    </select>
+</mapper>

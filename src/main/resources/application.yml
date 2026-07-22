@@ -20,8 +20,13 @@ spring:
     enabled: true
     locations: classpath:db/migration
     validate-on-migrate: true
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 
 mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
     # 数据库使用 snake_case，Java 使用 camelCase，统一映射避免每个字段重复声明。
     map-underscore-to-camel-case: true
@@ -50,3 +55,28 @@ server:
 logging:
   pattern:
     level: "%5p [requestId:%X{requestId:-}]"
+
+mixagent:
+  security:
+    admin:
+      username: ${MIXAGENT_ADMIN_USERNAME:admin}
+      password: ${MIXAGENT_ADMIN_PASSWORD:}
+  knowledge:
+    storage-root: ${MIXAGENT_KNOWLEDGE_STORAGE_PATH:../MixAgentData/knowledge}
+    max-file-size-bytes: 5242880
+    chunk-max-characters: 800
+    chunk-overlap-characters: 100
+    processing:
+      core-pool-size: 1
+      max-pool-size: 2
+      queue-capacity: 20
+      stale-after: 15m
+  ai:
+    embedding:
+      base-url: ${MIXAGENT_AI_BASE_URL:}
+      api-key: ${DASHSCOPE_API_KEY:}
+      model-name: ${MIXAGENT_EMBEDDING_MODEL:text-embedding-v4}
+      dimensions: ${MIXAGENT_EMBEDDING_DIMENSIONS:1024}
+      batch-size: 10
+      timeout: 30s
+      max-retries: 2

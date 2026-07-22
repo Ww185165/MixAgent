@@ -62,6 +62,31 @@ class MixAgentApplicationTests {
                 String.class
         );
         assertEquals("vector", embeddingType);
+
+        String embeddingDefinition = jdbcTemplate.queryForObject(
+                """
+                SELECT format_type(attribute.atttypid, attribute.atttypmod)
+                FROM pg_attribute attribute
+                JOIN pg_class relation ON relation.oid = attribute.attrelid
+                WHERE relation.relname = 'knowledge_chunk'
+                  AND attribute.attname = 'embedding'
+                  AND attribute.attnum > 0
+                """,
+                String.class
+        );
+        assertEquals("vector(1024)", embeddingDefinition);
+
+        Long hnswIndexCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(*)
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND tablename = 'knowledge_chunk'
+                  AND indexname = 'idx_knowledge_chunk_embedding_hnsw'
+                """,
+                Long.class
+        );
+        assertEquals(1L, hnswIndexCount);
     }
 
 }

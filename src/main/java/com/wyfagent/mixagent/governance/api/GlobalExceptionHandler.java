@@ -1,5 +1,11 @@
 package com.wyfagent.mixagent.governance.api;
 
+import com.wyfagent.mixagent.knowledge.application.exception.DuplicateKnowledgeDocumentException;
+import com.wyfagent.mixagent.knowledge.application.exception.InvalidKnowledgeDocumentException;
+import com.wyfagent.mixagent.knowledge.application.exception.KnowledgeApplicationException;
+import com.wyfagent.mixagent.knowledge.application.exception.KnowledgeDocumentNotFoundException;
+import com.wyfagent.mixagent.knowledge.application.exception.KnowledgeOperationConflictException;
+import com.wyfagent.mixagent.knowledge.application.exception.KnowledgeSearchUnavailableException;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +16,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -61,6 +68,35 @@ public class GlobalExceptionHandler {
                 "请求体格式不正确",
                 Map.of()
         );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleMaxUploadSize(MaxUploadSizeExceededException exception) {
+        return buildResponse(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "KNOWLEDGE_FILE_TOO_LARGE",
+                "上传文件超过允许大小",
+                Map.of()
+        );
+    }
+
+    @ExceptionHandler(KnowledgeApplicationException.class)
+    public ResponseEntity<ApiError> handleKnowledgeApplicationException(KnowledgeApplicationException exception) {
+        HttpStatus status;
+        if (exception instanceof KnowledgeDocumentNotFoundException) {
+            status = HttpStatus.NOT_FOUND;
+        } else if (exception instanceof DuplicateKnowledgeDocumentException
+                || exception instanceof KnowledgeOperationConflictException) {
+            status = HttpStatus.CONFLICT;
+        } else if (exception instanceof KnowledgeSearchUnavailableException) {
+            status = HttpStatus.SERVICE_UNAVAILABLE;
+        } else {
+            status = HttpStatus.BAD_REQUEST;
+        }
+        Map<String, String> details = exception instanceof DuplicateKnowledgeDocumentException duplicate
+                ? Map.of("existingDocumentId", Long.toString(duplicate.existingDocumentId()))
+                : Map.of();
+        return buildResponse(status, exception.code(), exception.getMessage(), details);
     }
 
     @ExceptionHandler(Exception.class)
